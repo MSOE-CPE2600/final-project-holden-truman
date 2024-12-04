@@ -11,7 +11,8 @@
 
 void send_vote(int socket, const char *vote, pid_t pid) {
     char buffer[BUFFER_SIZE];
-    snprintf(buffer, BUFFER_SIZE, "PID: %d, Vote: %s", pid, vote);
+    memset(buffer, 0, BUFFER_SIZE);
+    snprintf(buffer, BUFFER_SIZE, "PID: %d, Vote: %s ;", pid, vote);
     if (send(socket, buffer, strlen(buffer), 0) < 0) {
         perror("Send failed");
         return;
@@ -47,10 +48,10 @@ int main() {
     printf("Connected to server.\n");
 
     // Send a vote with PID
-    const char *vote = "Tree";
+    const char *vote = "Tree\0";
     send_vote(socket_fd, vote, pid);
 
-    send_vote(socket_fd, "Other", pid);
+    send_vote(socket_fd, "Other\0", pid);
 
     close(socket_fd);
     return 0;
