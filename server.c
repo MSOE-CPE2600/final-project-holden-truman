@@ -6,8 +6,12 @@
 #include <signal.h>
 #include <glib.h> // for hash table
 #include <sys/types.h>  // For pid_t
+#include <sys/socket.h>
+#include <linux/unistd.h>  // for SO_PEERCRED
 
-#define PORT 12345
+#define PORT 8080
+#define BUFFER_SIZE 1024
+
 #define MAX_VOTING_MACHINES 10
 #define DEFAULT_VOTERS 2000
 
@@ -41,15 +45,16 @@ void handle_sigtstp(int sig) {
 int tally_vote(int* vote_total, int* max_voters, GHashTable* voters, pid_t pid, char* candidate) {
     pid_t *pid_key = malloc(sizeof(pid_t));
     *pid_key = pid;
-    if (!g_hash_table_contains(voters, (void*) pid_key)) {
-        g_hash_table_insert(voters, (void*) pid_key, (void*) candidate);
-        print_all_keys(shared_data.voters, vote_total);
-        (*vote_total) = (*vote_total) + 1;
+
+    if (!g_hash_table_contains(voters, (void*)pid_key)) {
+        char* candidate_copy = strdup(candidate); // Copy the candidate string
+        g_hash_table_insert(voters, (void*)pid_key, (void*)candidate_copy);
+        (*vote_total)++;
+        printf("NEW VOTE: PID %d; Candidate: %s; VOTE TOTAL: %d\n", pid, candidate, *vote_total);
     } else {
         printf("VOTER FRAUD DETECTED: PID %d\n", pid);
         free(pid_key);  // Free the key since it's not used
     }
-    printf("NEW VOTE: PID %d; VOTE TOTAL: %d\n", pid, *vote_total);
     return 1;  // Successfully added the vote
 }
 
@@ -122,21 +127,24 @@ int load_votes(int* vote_total, int* max_voters) {
     // Initialize the hash table for voters
     shared_data.voters = g_hash_table_new(g_int_hash, g_int_equal);  // Create a new hash table
 
-    // Read the PIDs from voters_file (skip the header)
+    // Read the PIDs and candidates from voters_file (skip the header)
     fgets(header, sizeof(header), voters_file);  // Skip the header
-    pid_t* pid = malloc((size_t) * vote_total * sizeof(pid_t));
-    char* candidate = malloc(20 * sizeof(char));
+    pid_t* pid = malloc(sizeof(pid_t) * (*vote_total));
+    char* candidate = malloc(20 * sizeof(char)); // Allocate memory for candidate strings
     int i = 0;
-    while (fscanf(voters_file, "%d", &pid[i]) == 1) {
-        // Insert each PID into the hash table
-        pid_t *pid_key = malloc(sizeof(pid_t));
-        pid_t *pid_value = malloc(sizeof(pid_t));
+    while (fscanf(voters_file, "%d %s", &pid[i], candidate) == 2) {
+        // Insert each PID and candidate into the hash table
+        pid_t* pid_key = malloc(sizeof(pid_t));
         *pid_key = pid[i];
-        *pid_value = pid[i];
-        g_hash_table_insert(shared_data.voters, (void*) pid_key, (void*) candidate);
+
+        char* candidate_copy = strdup(candidate); // Make a copy of the candidate name
+
+        g_hash_table_insert(shared_data.voters, (void*)pid_key, (void*)candidate_copy);
         i++;
     }
 
+    free(pid);
+    free(candidate);
     fclose(num_file);
     fclose(voters_file);
 
@@ -162,15 +170,40 @@ void print_all_keys(GHashTable* voters, int* vote_total) {
     free(keys);  // Free the list of keys, but not the actual keys
 }
 
+void handle_vote(int client_socket) {
+    char buffer[BUFFER_SIZE];
+    int read_size;
+
+    // Receive the message (PID and vote)
+    while ((read_size = read(client_socket, buffer, BUFFER_SIZE)) > 0) {
+        buffer[read_size] = '\0';
+        printf("Received: %s\n", buffer);
+
+        // Parse the PID and vote (assuming "PID: <pid>, Vote: <vote>")
+        int pid;
+        char vote[BUFFER_SIZE];
+        sscanf(buffer, "PID: %d, Vote: %s", &pid, vote);
+        printf("Received vote from PID: %d\n", pid);
+        printf("Vote: %s\n", vote);
+        tally_vote(&shared_data.vote_total, &shared_data.max_voters, shared_data.voters, pid, vote);
+    }
+
+    if (read_size == 0) {
+        printf("Client disconnected.\n");
+    } else if (read_size == -1) {
+        perror("recv failed");
+    }
+}
+
 int main(int argc, char* argv[]) {
     signal(SIGINT, handle_sigint);   // Handle Ctrl+C
     signal(SIGTSTP, handle_sigtstp); // Handle Ctrl+Z
 
     int load_old = 1;
 
-    char c;
-    while((c = getopt(argc,argv,"l:h"))!=-1) {
-		switch(c) 
+    char arg;
+    while((arg = getopt(argc,argv,"l:h"))!=-1) {
+		switch(arg) 
 		{
 			case 'l':
 				load_old = atof(optarg);
@@ -194,12 +227,54 @@ int main(int argc, char* argv[]) {
         printf("Storing new data, overwriting old\n");
     }
 
-    pid_t pid = 8;
-    tally_vote(&shared_data.vote_total, &shared_data.max_voters, shared_data.voters, pid, "Name");
-    tally_vote(&shared_data.vote_total, &shared_data.max_voters, shared_data.voters, 2, "Bartholomew");
+    //pid_t pid = 8;
+    //tally_vote(&shared_data.vote_total, &shared_data.max_voters, shared_data.voters, pid, "Name");
+    //tally_vote(&shared_data.vote_total, &shared_data.max_voters, shared_data.voters, 2, "Bartholomew");
     
-    save_votes(&shared_data.vote_total);  // Save votes back to files
+    int server_fd, client_socket, c;
+    struct sockaddr_in server, client;
 
+    // Create socket
+    server_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_fd == -1) {
+        perror("Could not create socket");
+        return 1;
+    }
+    printf("Socket created.\n");
+
+    // Prepare the sockaddr_in structure
+    server.sin_family = AF_INET;
+    server.sin_addr.s_addr = INADDR_ANY;
+    server.sin_port = htons(PORT);
+
+    // Bind
+    if (bind(server_fd, (struct sockaddr *)&server, sizeof(server)) < 0) {
+        perror("Bind failed");
+        return 1;
+    }
+    printf("Bind done.\n");
+
+    // Listen
+    listen(server_fd, 3);
+
+    // Accept an incoming connection
+    printf("Waiting for incoming connections...\n");
+    c = sizeof(struct sockaddr_in);
+    client_socket = accept(server_fd, (struct sockaddr *)&client, (socklen_t *)&c);
+    if (client_socket < 0) {
+        perror("Accept failed");
+        return 1;
+    }
+    printf("Connection accepted.\n");
+
+    // Handle the vote
+    handle_vote(client_socket);
+
+    close(client_socket);
+    close(server_fd);
+
+    save_votes(&shared_data.vote_total);  // Save votes back to files
     // Free allocated memory
     g_hash_table_destroy(shared_data.voters);  //
+    return 0;
 }
