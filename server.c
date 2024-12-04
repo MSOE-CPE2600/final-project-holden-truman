@@ -1,3 +1,4 @@
+//gcc -g -o server server.c `pkg-config --cflags --libs glib-2.0`
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -20,25 +21,31 @@ typedef struct {
     GHashTable* voters; // Hash table for storing voters by PID
     int vote_total; // So I can clean things up
     int max_voters; // So I can clean things up
+    int server_fd; 
 } SharedData;
 
 // Global variable to hold the structure
 SharedData shared_data;
 
-int save_votes(int* vote_total);
+int save_votes();
 void print_all_keys(GHashTable* voters, int* vote_total);
+
+void cleanup() {
+    close(shared_data.server_fd);
+    save_votes();
+    g_hash_table_destroy(shared_data.voters);
+}
+
 
 // Signal handler for SIGINT (Ctrl+C)
 void handle_sigint(int sig) {
-    printf("Caught signal %d (Ctrl+C). Storing Voter Info...\n", sig);
-    g_hash_table_destroy(shared_data.voters);
-    save_votes(&shared_data.vote_total);
+    printf("Exiting Program. Cleaning up...\n");
     exit(0);
 }
 
 // Signal handler for SIGTSTP (Ctrl+Z)
 void handle_sigtstp(int sig) {
-    printf("Caught signal %d (Ctrl+Z). Ignoring...\n", sig);
+    printf("Caught signal %d (Ctrl+Z). Ignoring. (Ctrl+C) to exit\n", sig);
 }
 
 // Tally vote by checking if the PID is already in the hash table
@@ -68,7 +75,7 @@ void save_singular_vote(gpointer key, gpointer value, gpointer user_data) {
     fprintf(voters_file, "%d %s\n", pid, candidate);
 }
 
-int save_votes(int* vote_total) {
+int save_votes() {
     printf("Saving votes...\n");
 
     // Open the CSV files for writing
@@ -196,6 +203,9 @@ void handle_vote(int client_socket) {
 }
 
 int main(int argc, char* argv[]) {
+    // Register the cleanup function to be called at exit
+    atexit(cleanup);
+
     signal(SIGINT, handle_sigint);   // Handle Ctrl+C
     signal(SIGTSTP, handle_sigtstp); // Handle Ctrl+Z
 
@@ -231,12 +241,11 @@ int main(int argc, char* argv[]) {
     //tally_vote(&shared_data.vote_total, &shared_data.max_voters, shared_data.voters, pid, "Name");
     //tally_vote(&shared_data.vote_total, &shared_data.max_voters, shared_data.voters, 2, "Bartholomew");
     
-    int server_fd, client_socket, c;
     struct sockaddr_in server, client;
 
     // Create socket
-    server_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (server_fd == -1) {
+    shared_data.server_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (shared_data.server_fd == -1) {
         perror("Could not create socket");
         return 1;
     }
@@ -248,33 +257,40 @@ int main(int argc, char* argv[]) {
     server.sin_port = htons(PORT);
 
     // Bind
-    if (bind(server_fd, (struct sockaddr *)&server, sizeof(server)) < 0) {
+    if (bind(shared_data.server_fd, (struct sockaddr *)&server, sizeof(server)) < 0) {
         perror("Bind failed");
         return 1;
     }
     printf("Bind done.\n");
 
     // Listen
-    listen(server_fd, 3);
+    listen(shared_data.server_fd, 3);
 
-    // Accept an incoming connection
-    printf("Waiting for incoming connections...\n");
-    c = sizeof(struct sockaddr_in);
-    client_socket = accept(server_fd, (struct sockaddr *)&client, (socklen_t *)&c);
-    if (client_socket < 0) {
-        perror("Accept failed");
-        return 1;
+    while (1) {
+        int client_socket, c;
+        struct sockaddr_in client;
+        
+        // Accept an incoming connection
+        printf("Waiting for incoming connections...\n");
+        c = sizeof(struct sockaddr_in);
+        client_socket = accept(shared_data.server_fd, (struct sockaddr *)&client, (socklen_t *)&c);
+        if (client_socket < 0) {
+            perror("Accept failed");
+            continue;  // Skip this iteration and keep waiting for other connections
+        }
+        printf("Connection accepted.\n");
+
+        // Handle the vote from the client
+        handle_vote(client_socket);
+
+        // Close the client socket after handling the vote
+        close(client_socket);
     }
-    printf("Connection accepted.\n");
 
-    // Handle the vote
-    handle_vote(client_socket);
+    //close(shared_date.server_fd);
 
-    close(client_socket);
-    close(server_fd);
-
-    save_votes(&shared_data.vote_total);  // Save votes back to files
+    //save_votes();  // Save votes back to files
     // Free allocated memory
-    g_hash_table_destroy(shared_data.voters);  //
+    //g_hash_table_destroy(shared_data.voters);  //
     return 0;
 }

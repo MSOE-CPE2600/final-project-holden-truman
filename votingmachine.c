@@ -1,3 +1,4 @@
+//gcc votingmachine.c -o votingmachine
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -48,6 +49,8 @@ int main() {
     // Send a vote with PID
     const char *vote = "Tree";
     send_vote(socket_fd, vote, pid);
+
+    send_vote(socket_fd, "Other", pid);
 
     close(socket_fd);
     return 0;
