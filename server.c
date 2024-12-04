@@ -38,22 +38,29 @@ void handle_sigtstp(int sig) {
 }
 
 // Tally vote by checking if the PID is already in the hash table
-int tally_vote(int* vote_total, int* max_voters, GHashTable* voters, pid_t pid) {
+int tally_vote(int* vote_total, int* max_voters, GHashTable* voters, pid_t pid, char* candidate) {
     pid_t *pid_key = malloc(sizeof(pid_t));
-    pid_t *pid_value = malloc(sizeof(pid_t));
     *pid_key = pid;
-    *pid_value = pid;
     if (!g_hash_table_contains(voters, (void*) pid_key)) {
-        g_hash_table_insert(voters, (void*) pid_key, (void*) pid_value);
+        g_hash_table_insert(voters, (void*) pid_key, (void*) candidate);
         print_all_keys(shared_data.voters, vote_total);
         (*vote_total) = (*vote_total) + 1;
     } else {
         printf("VOTER FRAUD DETECTED: PID %d\n", pid);
         free(pid_key);  // Free the key since it's not used
-        free(pid_value); // Free the value since it's not used
     }
     printf("NEW VOTE: PID %d; VOTE TOTAL: %d\n", pid, *vote_total);
     return 1;  // Successfully added the vote
+}
+
+void save_singular_vote(gpointer key, gpointer value, gpointer user_data) {
+    // Assuming keys are of type pid_t and values are strings
+    pid_t pid = *(pid_t*)key;
+    char *candidate = (char*) value;
+    
+    // Print the key-value pair to the file provided in user_data
+    FILE *voters_file = (FILE *)user_data;
+    fprintf(voters_file, "%d %s\n", pid, candidate);
 }
 
 int save_votes(int* vote_total) {
@@ -78,18 +85,7 @@ int save_votes(int* vote_total) {
 
     // Write all PIDs in the hash table to voters_file in CSV format
     fprintf(voters_file, "PID\n");  // Column header for the PIDs
-    gpointer* keys = g_hash_table_get_keys_as_array(shared_data.voters, vote_total);
-
-    // Ensure keys is valid and write them to the file
-    if (keys != NULL) {
-        for (int i = 0; i < hash_vote_count; i++) {
-            pid_t pid = *((pid_t*) keys[i]);  // Dereference the pointer to get the actual PID value
-            fprintf(voters_file, "%d\n", pid);  // Write the PID to the CSV file
-        }
-        free(keys);  // Free the list of keys, but not the actual keys
-    } else {
-        printf("Error: Could not retrieve keys from hash table.\n");
-    }
+    g_hash_table_foreach(shared_data.voters, save_singular_vote, voters_file);
 
     // Close the files
     fclose(num_file);
@@ -128,7 +124,8 @@ int load_votes(int* vote_total, int* max_voters) {
 
     // Read the PIDs from voters_file (skip the header)
     fgets(header, sizeof(header), voters_file);  // Skip the header
-    pid_t* pid = malloc((size_t) *vote_total * sizeof(pid_t));
+    pid_t* pid = malloc((size_t) * vote_total * sizeof(pid_t));
+    char* candidate = malloc(20 * sizeof(char));
     int i = 0;
     while (fscanf(voters_file, "%d", &pid[i]) == 1) {
         // Insert each PID into the hash table
@@ -136,7 +133,7 @@ int load_votes(int* vote_total, int* max_voters) {
         pid_t *pid_value = malloc(sizeof(pid_t));
         *pid_key = pid[i];
         *pid_value = pid[i];
-        g_hash_table_insert(shared_data.voters, (void*) pid_key, (void*) pid_value);
+        g_hash_table_insert(shared_data.voters, (void*) pid_key, (void*) candidate);
         i++;
     }
 
@@ -169,16 +166,37 @@ int main(int argc, char* argv[]) {
     signal(SIGINT, handle_sigint);   // Handle Ctrl+C
     signal(SIGTSTP, handle_sigtstp); // Handle Ctrl+Z
 
+    int load_old = 1;
+
+    char c;
+    while((c = getopt(argc,argv,"l:h"))!=-1) {
+		switch(c) 
+		{
+			case 'l':
+				load_old = atof(optarg);
+				break;
+            case 'h':
+				//show_help();
+				exit(1);
+				break;
+		}
+	}
+    printf("Load old %d\n", load_old);
     shared_data.vote_total = 0;  // Initialize vote_total to 0
     shared_data.max_voters = (int) DEFAULT_VOTERS; // Default max voters capacity
 
     shared_data.voters = g_hash_table_new(g_int_hash, g_int_equal);  // Initialize the hash table
 
-    int load_old_votes = load_votes(&shared_data.vote_total, &shared_data.max_voters); // Load previous votes from file
-    printf("Loaded %d voters\n\n", shared_data.vote_total);
+    if (load_old) {
+        int load_old_votes = load_votes(&shared_data.vote_total, &shared_data.max_voters); // Load previous votes from file
+        printf("Loaded %d voters\n\n", shared_data.vote_total);
+    } else {
+        printf("Storing new data, overwriting old\n");
+    }
 
     pid_t pid = 8;
-    tally_vote(&shared_data.vote_total, &shared_data.max_voters, shared_data.voters, pid);
+    tally_vote(&shared_data.vote_total, &shared_data.max_voters, shared_data.voters, pid, "Name");
+    tally_vote(&shared_data.vote_total, &shared_data.max_voters, shared_data.voters, 2, "Bartholomew");
     
     save_votes(&shared_data.vote_total);  // Save votes back to files
 
