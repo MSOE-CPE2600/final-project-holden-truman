@@ -1,3 +1,13 @@
+/**********************************
+* CPE 2600 121 Lab 13: Final Project
+* Filename: fileio.h
+* Description: A heafer file that contains method declarations
+* for fileio.c
+*
+* Author: Holden Truman
+* Date 12/9/2024
+***********************************/
+
 #ifndef FILEIO_H
 #define FILIO_H
 

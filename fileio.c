@@ -1,3 +1,13 @@
+/**********************************
+* CPE 2600 121 Lab 13: Final Project
+* Filename: fileio.c
+* Description: A program that contains methods to help
+* with fileio for .csv files for the server.c program
+*
+* Author: Holden Truman
+* Date 12/9/2024
+***********************************/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

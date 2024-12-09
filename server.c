@@ -1,4 +1,14 @@
-//gcc -g -o server server.c `pkg-config --cflags --libs glib-2.0`
+/**********************************
+* CPE 2600 121 Lab 13: Final Project
+* Filename: server.c
+* Description: A server program to tally votes from voting machines
+* and save them to .csv files. Program has voter fraud detection
+* by tracking PIDs and can load old data from previous runs.
+*
+* Author: Holden Truman
+* Date 12/9/2024
+***********************************/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

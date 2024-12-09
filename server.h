@@ -1,3 +1,13 @@
+/**********************************
+* CPE 2600 121 Lab 13: Final Project
+* Filename: server.h
+* Description: A header file that contains method declarations
+* for server.c
+*
+* Author: Holden Truman
+* Date 12/9/2024
+***********************************/
+
 // Function declarations
 #ifndef SERVER_H
 #define SERVER_H

@@ -1,3 +1,13 @@
+/**********************************
+* CPE 2600 121 Lab 13: Final Project
+* Filename: shared_data.h
+* Description: A header file that contains a structure to hold
+* data that can be accessed for cleanup in the server.c program
+*
+* Author: Holden Truman
+* Date 12/9/2024
+***********************************/
+
 #ifndef SHARED_DATA_H
 #define SHARED_DATA_H
 
