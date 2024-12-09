@@ -20,7 +20,7 @@ void send_vote(int socket, const char *vote, pid_t pid) {
     printf("Vote sent: %s\n", buffer);
 }
 
-int main() {
+void run_socket(char* vote) {
     int socket_fd;
     struct sockaddr_in server;
     
@@ -32,7 +32,7 @@ int main() {
     socket_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (socket_fd == -1) {
         perror("Could not create socket");
-        return 1;
+        exit(1);
     }
     printf("Socket created.\n");
 
@@ -43,16 +43,23 @@ int main() {
     // Connect to remote server
     if (connect(socket_fd, (struct sockaddr *)&server, sizeof(server)) < 0) {
         perror("Connect failed");
-        return 1;
+        exit(1);
     }
     printf("Connected to server.\n");
 
     // Send a vote with PID
-    const char *vote = "Tree\0";
     send_vote(socket_fd, vote, pid);
 
-    send_vote(socket_fd, "Other\0", pid);
-
     close(socket_fd);
+}
+
+int main() {
+    char* vote1 = "Melendez\0";
+    char* vote2 = "Joe\0";
+
+    run_socket(vote1);
+    run_socket(vote1);
+    run_socket(vote2);
+    
     return 0;
 }
