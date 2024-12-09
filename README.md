@@ -1,6 +1,6 @@
 # System Programming Lab 13 Final Project
 ## Overview of Implementation & Purpose
-This project provides a voting machine that sends a user's command line argument [-v <vote>] to the a server which tracks votes. The program tries to encapsulate desired
+This project provides a voting machine that sends a user's command line argument [-v <vote>] to a server which tracks votes. The program tries to encapsulate desired
 features of real voting machines, such as fraud detection, which is done with tracking PIDS. In order to do this the glib HashTable implementation, which has not been used
 in class previously, was used to store users' votes along with their PID, and due to the HashTable's constant contains runtime this process is very efficient 
 (rather than having to parse through potentially millions of votes in a real scenario). The server runs a socket, which is how different voting machines can connect to it. A
