@@ -4,10 +4,49 @@
 #include <unistd.h>
 #include <string.h>
 #include <arpa/inet.h>
+#include <string.h>
 
 #define PORT 8080
 #define SERVER_IP "127.0.0.1"
 #define BUFFER_SIZE 1024
+
+void show_help();
+void send_vote(int socket, const char *vote, pid_t pid);
+void run_socket(char* vote);
+
+int main(int argc, char* argv[]) {
+    char* real_vote = "NOVOTE";
+    char* fake_vote = "Joe";
+
+    char arg;
+
+    while((arg = getopt(argc,argv,"v:h"))!=-1) {
+		switch(arg) 
+		{
+			case 'v':
+				real_vote = optarg;
+                //strcat(real_vote, "\0");
+				break;
+            case 'h':
+				show_help();
+				exit(0);
+				break;
+		}
+	}
+
+    run_socket(real_vote);
+    run_socket(fake_vote);
+    run_socket(real_vote);
+    
+    return 0;
+}
+
+void show_help() {
+    printf("Usage: ./votingmachine -v <vote> [-h]\n");
+    printf("Options:\n");
+    printf("  -v <vote>  Specify the real vote\n");
+    printf("  -h         Show help information\n");
+}
 
 void send_vote(int socket, const char *vote, pid_t pid) {
     char buffer[BUFFER_SIZE];
@@ -51,15 +90,4 @@ void run_socket(char* vote) {
     send_vote(socket_fd, vote, pid);
 
     close(socket_fd);
-}
-
-int main() {
-    char* vote1 = "Melendez\0";
-    char* vote2 = "Joe\0";
-
-    run_socket(vote1);
-    run_socket(vote1);
-    run_socket(vote2);
-    
-    return 0;
 }
