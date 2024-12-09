@@ -37,8 +37,7 @@ int main(int argc, char* argv[]) {
 				load_old = atof(optarg);
 				break;
             case 'h':
-				show_help();
-				return 0;;
+				//doesn't actually do anything, shows help by default
 				break;
 		}
 	}
