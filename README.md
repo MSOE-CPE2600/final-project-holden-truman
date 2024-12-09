@@ -9,7 +9,7 @@ voting machine sends its' PID and vote to the socket, which are then processed b
 The server can be stopped with Ctrl+C, and when it shutdowns it automatically cleans up and saves the results to .csv files. The cleanup function ensures that no memory 
 leaks occur in the server program, and no memory leaks are possible in the voting machine program. In addition to saving the results the server program's default behavior is to load votes from existing runs, but this can overridden with the argument -l 0.
 
-*See the report pdf in the repository for screenshots of the programming running.*
+*See the report pdf in the repository for screenshots of the programming running. Make sure to click 'More Pages' if you view in on github*
 
 ## Sample Inputs
 
