@@ -1,4 +1,12 @@
-//gcc votingmachine.c -o votingmachine
+/**********************************
+* CPE 2600 121 Lab 13: Final Project
+* Filename: votingmachine.c
+* Description: A program to send votes to the server
+*
+* Author: Holden Truman
+* Date 12/9/2024
+***********************************/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
